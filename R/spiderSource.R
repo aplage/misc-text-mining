@@ -1,4 +1,4 @@
-#!/usr/bin/env R
+#!/usr/bin/env Rscript
 # (c) Copyright 2014 mkfs <https://github.com/mkfs>
 # spiderSource: a replacement for tm.plugin.webmining WebSource which
 #               spiders URLs instead of simply downloading them.
@@ -9,7 +9,11 @@ library(tm)
 library(tm.plugin.webmining)
 
 uri.domain <- function(url) {
-  hostname <- strsplit(gsub("^[[:alpha:]]+://", "", url), "/")[[1]][1]
+  hostname <- tryCatch(
+		       strsplit(gsub("^[[:alpha:]]+://", "", url), "/")[[1]][1],
+		       error=function(e) { return("") }
+		       )
+
   if ( nchar(hostname) == 0 ) return("")
   
   # this removes all components < 3 letters from start of hostname
