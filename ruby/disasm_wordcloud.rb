@@ -1,5 +1,18 @@
 #!/usr/bin/env ruby
+# disasm_wordcloud : Generate a wordcloud image (using R) for the symbols or
+# instruction mnemonics in a binary. The binary is disassembled with
+#    objdump -DRTgrstx 
+# and symbols are counted only if they are referenced as an instruction operand.
 # (c) Copyright 2014 mkfs <https://github.com/mkfs>
+# Examples:
+#   generate wordcloud image 'a.out.png' for library symbols:
+#     disasm_wordcloud.rb /tmp/a.out
+#   write output to file '/tmp/wordcloud.png' instead:
+#     disasm_wordcloud.rb -o /tmp/wordcloud.png /tmp/a.out
+#   generate wordcloud image for instruction mnemonics:
+#     disasm_wordcloud.rb -m /tmp/a.out
+#   invert frequencies of mnemonics so least-used appear larger:
+#     disasm_wordcloud.rb -m -i /tmp/a.out
 
 require 'ostruct'
 require 'optparse'
