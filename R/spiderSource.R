@@ -19,6 +19,8 @@ uri.domain <- function(url) {
   # this removes all components < 3 letters from start of hostname
   arr <- strsplit(hostname, "[.]")[[1]]
   n <- which(sapply(arr, function(x) nchar(x) > 3 ))[1]
+  if ( is.na(n) ) n <- 1
+  
   return( paste(arr[ n:length(arr) ], collapse='.') )
 }
 
@@ -56,10 +58,12 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
     if ( length(next.urls) < 1 ) next
     
     html.raw <- tryCatch(
-			rawToChar(getURLContent(next.urls, binary=TRUE, .opts = curlOpts)),
+			rawToChar(getURLContent(next.urls, binary=TRUE, .opts = curlOpts)),			
 			# On CURL error, return a blank HTML page
-      error=function(e) { return("<html>\n</html>\n"); } 
+      error=function(e) { warning(e);
+                          return(rep("<html>\n</html>\n", length(next.urls))); } 
 	  )
+    
     # name each row after URL for subsequent out-edge storage
     names(html.raw) <- next.urls
     
@@ -84,15 +88,17 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
       urls[[n]] <- vec[ vec != n ]
     }
     
-    
     if (! cross.domains ) {
-      urls <- lapply(urls, 
-                     function (vec) vec[ which( uri.domain(vec) %in% visited.domains ) ] )
+      for (n in names(urls)) {
+        vec <- urls[[n]]
+        urls[[n]] <- vec[ which( sapply(vec, uri.domain) %in% visited.domains ) ]
+
+      }
     }
-    
+
     # queue all URLs that have not yet been downloaded
     out.edges <- c(out.edges, urls)
-    next.urls <- unique(unlist(sapply(urls,
+    next.urls <- unique(unlist(lapply(urls,
                  function (vec) vec[which(! vec %in% fetched.urls)] )))
     
   }
