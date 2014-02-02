@@ -33,11 +33,12 @@ clean.url <- function(urls) {
 
 # this is a replacement for WebSource
 spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL, 
-			 encoding = "UTF-8", cross.domains = FALSE, 
-			 depth = 10, vectorized = FALSE, 
-                         curlOpts = curlOptions(followlocation = TRUE, 
-						maxconnects = 20, 
-                                                maxredirs = 10, timeout = 30, 
+			                   encoding = "UTF-8", cross.domains = FALSE, 
+			                   depth = 10, vectorized = FALSE, 
+                         curlOpts = curlOptions(followlocation = TRUE,
+                                                maxconnects = 20, 
+                                                maxredirs = 10, 
+                                                timeout = 30, 
                                                 connecttimeout = 30) ) {
   
   if ( is.null(parser) ) {
@@ -47,6 +48,7 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
   next.urls <- feedurls   # URLs to be downloaded
   fetched.urls <- c()     # URLs downloaded so far
   visited.domains <- c()  # maintain list of hosts visited
+  out.edges <- list()     # out-edges for each URL
   parsed.content <- c()   # parsed XML trees
   
   if (depth < 1) depth <- 1
@@ -54,11 +56,12 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
     if ( length(next.urls) < 1 ) next
     
     html.raw <- tryCatch(
-			rawToChar(getURLContent(next.urls, binary=TRUE, 
-						 .opts = curlOpts)),
+			rawToChar(getURLContent(next.urls, binary=TRUE, .opts = curlOpts)),
 			# On CURL error, return a blank HTML page
-                        error=function(e) { return("<html>\n</html>\n"); } 
-			)
+      error=function(e) { return("<html>\n</html>\n"); } 
+	  )
+    # name each row after URL for subsequent out-edge storage
+    names(html.raw) <- next.urls
     
     # store domains that have been visited
     domains <- sapply(next.urls, uri.domain)
@@ -73,16 +76,25 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
     parsed.content <- c(parsed.content, html.tree)
     
     # extract HREF elements from A tags
-    urls <- unlist(sapply(html.tree, function(x) xpathSApply(x, "//a/@href")))
-    urls <- clean.url(urls)
-    # TODO: extract out-edges for each page
+    urls <- lapply(html.tree, function(x) xpathSApply(x, "//a/@href"))
+    urls <- lapply(urls, clean.url)
+    # remove self-references
+    for (n in names(urls)) {
+      vec <- urls[[n]]
+      urls[[n]] <- vec[ vec != n ]
+    }
+    
     
     if (! cross.domains ) {
-      urls <- urls[ which( uri.domain(urls) %in% visited.domains ) ] 
+      urls <- lapply(urls, 
+                     function (vec) vec[ which( uri.domain(vec) %in% visited.domains ) ] )
     }
     
     # queue all URLs that have not yet been downloaded
-    next.urls <- unique( urls[which(! urls %in% fetched.urls)] )
+    out.edges <- c(out.edges, urls)
+    next.urls <- unique(unlist(sapply(urls,
+                 function (vec) vec[which(! vec %in% fetched.urls)] )))
+    
   }
   
   obj <- tm:::.Source(NULL, encoding, length(parsed.content), FALSE, NULL, 0, 
@@ -93,6 +105,7 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
   obj$CurlOpts <- curlOpts
   obj$DepthOption <- depth
   obj$CrossDomainsOption <- cross.domains
+  obj$OutEdges <- out.edges
 
   obj
 }
