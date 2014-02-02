@@ -75,7 +75,7 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
     # extract HREF elements from A tags
     urls <- unlist(sapply(html.tree, function(x) xpathSApply(x, "//a/@href")))
     urls <- clean.url(urls)
-    # TODO: extract out-edged for each page
+    # TODO: extract out-edges for each page
     
     if (! cross.domains ) {
       urls <- urls[ which( uri.domain(urls) %in% visited.domains ) ] 
@@ -91,8 +91,8 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
   obj$Feedurls <- feedurls
   obj$Parser <- parser
   obj$CurlOpts <- curlOpts
-  #s$Depth.Option <- depth
-  #s$Cross.Domains.Option <- cross.domains
-  # TODO: edge.out
+  obj$DepthOption <- depth
+  obj$CrossDomainsOption <- cross.domains
+
   obj
 }
