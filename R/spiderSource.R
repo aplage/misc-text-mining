@@ -57,15 +57,18 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
   for ( i in 1:depth ) {
     if ( length(next.urls) < 1 ) next
     
-    html.raw <- tryCatch(
-			rawToChar(getURLContent(next.urls, binary=TRUE, .opts = curlOpts)),			
-			# On CURL error, return a blank HTML page
-      error=function(e) { warning(e);
-                          return(rep("<html>\n</html>\n", length(next.urls))); } 
-	  )
-    
-    # name each row after URL for subsequent out-edge storage
-    names(html.raw) <- next.urls
+    # TODO: replace with per-url loop
+    html.raw <- list()
+    for (url in next.urls) {
+      html.raw[[url]] <- tryCatch(
+        getURLContent(url, binary=NA, .opts = curlOpts),			
+        # On CURL error, return a blank HTML page
+        error=function(e) { warning(paste("ERROR DOWNLOADING", url)); 
+                            warning(e);
+                            return("<html>\n</html>\n"); 
+                          } 
+      )
+    }
     
     # store domains that have been visited
     domains <- sapply(next.urls, uri.domain)
