@@ -57,10 +57,10 @@ spiderSource <- function(feedurls, class = "WebXMLSource", parser = NULL,
   for ( i in 1:depth ) {
     if ( length(next.urls) < 1 ) next
     
-    # TODO: replace with per-url loop
     html.raw <- list()
     for (url in next.urls) {
       html.raw[[url]] <- tryCatch(
+        # NOTE: This assumes HTML. PDFs till fail.
         getURLContent(url, binary=NA, .opts = curlOpts),			
         # On CURL error, return a blank HTML page
         error=function(e) { warning(paste("ERROR DOWNLOADING", url)); 
