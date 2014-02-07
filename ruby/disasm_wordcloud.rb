@@ -21,26 +21,38 @@ load File.join(File.dirname(__FILE__), "r_interface.rb")
 
 $DEBUG = false
 
+=begin rdoc
+Invoke objdump to disassemble the target and generate a list of terms from the
+output. The terms can be either function symbols or instruction mnemonics.
+=end
 def disasm(path, opts)
   if `which objdump`.empty?
     raise "objdump not found!"
   end
 
-  terms = `objdump -DRTgrstx '#{path}'`.lines.inject([]) do |arr, line|
-    if (opts.mnemonic)
-      if line =~ /^\s*[[:xdigit:]]+:[[:xdigit:]\s]+\s+([[:alnum:]]+)\s*/
-        arr << $1
+  terms = []
+  if opts.string
+    terms = `strings '#{path}'`.gsub(/[[:punct:]]/, '').lines.to_a
+  else
+    terms = `objdump -DRTgrstx '#{path}'`.lines.inject([]) do |arr, line|
+      if (opts.mnemonic)
+        if line =~ /^\s*[[:xdigit:]]+:[[:xdigit:]\s]+\s+([[:alnum:]]+)\s*/
+          arr << $1
+        end
+      else
+        arr << $1 if line =~ /<([_[:alnum:]]+)(@[[:alnum:]]+)?>\s*$/
       end
-    else
-      arr << $1 if line =~ /<([_[:alnum:]]+)(@[[:alnum:]]+)?>\s*$/
+      arr
     end
-    arr
   end
 
   puts terms.inspect if $DEBUG
   terms.join(" ")
 end
 
+=begin rdoc
+Generate an image file from the target name and options.
+=end
 def output_filename(path, opts)
   filename = File.basename(path) + '.png'
   if opts.filename
@@ -53,10 +65,11 @@ def output_filename(path, opts)
   filename
 end
 
-def disasm_wordcloud(path, opts)
-  img_path = output_filename path, opts
-  terms = disasm(path, opts)
-
+=begin rdoc
+Use R to generate a wordcloud PNG file based on an array of terms, file path, 
+and options.
+=end
+def wordcloud_for_terms(terms, img_path, opts)
   begin
     $stderr.puts "Evaluating: Corpus(VectorSource('#{terms}')" if $DEBUG
     $r.eval_R("corpus <- Corpus(VectorSource('#{terms}'))")
@@ -91,8 +104,30 @@ def disasm_wordcloud(path, opts)
   end
 end
 
-  # ----------------------------------------------------------------------
+=begin rdoc
+Invoke disassembler and generate wordcloud PNG file for target at 'path'.
+=end
+def disasm_wordcloud(path, opts)
+  img_path = output_filename path, opts
+  terms = disasm(path, opts)
+  wordcloud_for_terms( terms, img_path, opts )
+end
 
+=begin rdoc
+Initialize R (via rsruby gem) and load packages for textmining and wordcloud.
+=end
+def initialize_r(options)
+  $stderr.puts "Initializing R" if $DEBUG
+  $r = RInterface.init options.r_dir
+
+  $stderr.puts "Loading package 'tm'" if $DEBUG
+  $r.eval_R("suppressMessages(library('tm'))")
+
+  $stderr.puts "Loading package 'wordcloud'" if $DEBUG
+  $r.eval_R("suppressMessages(library('wordcloud'))")
+end
+
+# ----------------------------------------------------------------------
 def handle_options(args)
 
   options = OpenStruct.new
@@ -100,6 +135,7 @@ def handle_options(args)
   options.r_dir = nil
   options.filename = nil
   options.mnemonic = false
+  options.string = false
   options.trans = false
   options.invert = false
   options.min = 1
@@ -108,14 +144,16 @@ def handle_options(args)
     opts.banner = "Usage: #{File.basename $0} TARGET [...]"
     opts.separator ""
 
-    opts.on('-f', '--min-freq', 'Minimum frequency (1)') { |num| 
+    opts.on('-f int', '--min-freq int', 'Minimum frequency (1)') { |num| 
       options.min = Integer(num) } 
     opts.on('-i', '--invert', 'Invert frequency counts') { 
       options.invert = true } 
     opts.on('-m', '--mnemonic', 'Use mnemonics instead of symbols') { 
       options.mnemonic = true } 
-    opts.on('-o', '--output', 'Outout filename') { |str| 
+    opts.on('-o', '--output str', 'Outout filename') { |str| 
       options.filename = str } 
+    opts.on('-s', '--strings', 'Use ASCII strings instead of symbols') { 
+      options.string = true } 
     opts.on('-t', '--trans', 'Transparent image background') { 
       options.trans = true } 
     opts.on('--r-dir str', 'Top-level directory of R installation') { |str|
@@ -143,14 +181,8 @@ end
 # ----------------------------------------------------------------------
 if __FILE__ == $0
   options = handle_options(ARGV)
-  $stderr.puts "Initializing R" if $DEBUG
-  $r = RInterface.init options.r_dir
 
-  $stderr.puts "Loading package 'tm'" if $DEBUG
-  $r.eval_R("suppressMessages(library('tm'))")
-
-  $stderr.puts "Loading package 'wordcloud'" if $DEBUG
-  $r.eval_R("suppressMessages(library('wordcloud'))")
+  initialize_r(options)
 
   options.targets.each do |path|
     $stderr.puts "Processing target '#{path}'" if $DEBUG
